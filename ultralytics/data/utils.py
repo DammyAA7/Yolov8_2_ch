@@ -36,7 +36,7 @@ from ultralytics.utils.downloads import download, safe_download, unzip_file
 from ultralytics.utils.ops import segments2boxes
 
 HELP_URL = "See https://docs.ultralytics.com/datasets/detect for dataset formatting guidance."
-IMG_FORMATS = {"bmp", "dng", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp", "pfm"}  # image suffixes
+IMG_FORMATS = {"npy", "bmp", "dng", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp", "pfm"}  # image suffixes
 VID_FORMATS = {"asf", "avi", "gif", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "wmv", "webm"}  # video suffixes
 PIN_MEMORY = str(os.getenv("PIN_MEMORY", True)).lower() == "true"  # global pin_memory for dataloaders
 FORMATS_HELP_MSG = f"Supported formats are:\nimages: {IMG_FORMATS}\nvideos: {VID_FORMATS}"
@@ -72,21 +72,33 @@ def exif_size(img: Image.Image):
 def verify_image(args):
     """Verify one image."""
     (im_file, cls), prefix = args
+    im_file = Path(im_file)
     # Number (found, corrupt), message
     nf, nc, msg = 0, 0, ""
     try:
-        im = Image.open(im_file)
-        im.verify()  # PIL verify
-        shape = exif_size(im)  # image size
-        shape = (shape[1], shape[0])  # hw
-        assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
-        assert im.format.lower() in IMG_FORMATS, f"Invalid image format {im.format}. {FORMATS_HELP_MSG}"
-        if im.format.lower() in {"jpg", "jpeg"}:
-            with open(im_file, "rb") as f:
-                f.seek(-2, 2)
-                if f.read() != b"\xff\xd9":  # corrupt JPEG
-                    ImageOps.exif_transpose(Image.open(im_file)).save(im_file, "JPEG", subsampling=0, quality=100)
-                    msg = f"{prefix}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved"
+        if im_file.suffix == '.npy':  # If the file is an npy file
+            im = np.load(im_file)  # Load the npy file
+            shape = im.shape[:2]  # Assume HxWxC or HxW for grayscale
+            assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
+            if im.ndim == 3 and im.shape[2] >= 2:  # Ensure there are at least 2 channels
+                im = im[:, :, :2]  # Keep only the first two channels
+        else:
+            im = Image.open(im_file)
+            im.verify()  # PIL verify
+            shape = exif_size(im)  # image size
+            shape = (shape[1], shape[0])  # hw
+            assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
+            assert im.format.lower() in IMG_FORMATS, f"invalid image format {im.format}"
+            if im.format.lower() in ("jpg", "jpeg"):
+                with open(im_file, "rb") as f:
+                    f.seek(-2, 2)
+                    if f.read() != b"\xff\xd9":  # corrupt JPEG
+                        ImageOps.exif_transpose(Image.open(im_file)).save(im_file, "JPEG", subsampling=0, quality=100)
+                        msg = f"{prefix}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved"
+            im = im.convert("RGB")  # Ensure image is in RGB mode
+            im = np.array(im)
+            im = im[:, :, :2]  # Keep only the first two channels
+            im = Image.fromarray(im)
         nf = 1
     except Exception as e:
         nc = 1
@@ -97,22 +109,33 @@ def verify_image(args):
 def verify_image_label(args):
     """Verify one image-label pair."""
     im_file, lb_file, prefix, keypoint, num_cls, nkpt, ndim = args
+    im_file = Path(im_file)
     # Number (missing, found, empty, corrupt), message, segments, keypoints
     nm, nf, ne, nc, msg, segments, keypoints = 0, 0, 0, 0, "", [], None
     try:
-        # Verify images
-        im = Image.open(im_file)
-        im.verify()  # PIL verify
-        shape = exif_size(im)  # image size
-        shape = (shape[1], shape[0])  # hw
-        assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
-        assert im.format.lower() in IMG_FORMATS, f"invalid image format {im.format}. {FORMATS_HELP_MSG}"
-        if im.format.lower() in {"jpg", "jpeg"}:
-            with open(im_file, "rb") as f:
-                f.seek(-2, 2)
-                if f.read() != b"\xff\xd9":  # corrupt JPEG
-                    ImageOps.exif_transpose(Image.open(im_file)).save(im_file, "JPEG", subsampling=0, quality=100)
-                    msg = f"{prefix}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved"
+        if im_file.suffix == '.npy':  # If the file is an npy file
+            im = np.load(im_file)  # Load the npy file
+            shape = im.shape[:2]  # Assume HxWxC or HxW for grayscale
+            assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
+            if im.ndim == 3 and im.shape[2] >= 2:  # Ensure there are at least 2 channels
+                im = im[:, :, :2]  # Keep only the first two channels
+        else:
+            im = Image.open(im_file)
+            im.verify()  # PIL verify
+            shape = exif_size(im)  # image size
+            shape = (shape[1], shape[0])  # hw
+            assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
+            assert im.format.lower() in IMG_FORMATS, f"invalid image format {im.format}"
+            if im.format.lower() in ("jpg", "jpeg"):
+                with open(im_file, "rb") as f:
+                    f.seek(-2, 2)
+                    if f.read() != b"\xff\xd9":  # corrupt JPEG
+                        ImageOps.exif_transpose(Image.open(im_file)).save(im_file, "JPEG", subsampling=0, quality=100)
+                        msg = f"{prefix}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved"
+            im = im.convert("RGB")  # Ensure image is in RGB mode
+            im = np.array(im)
+            im = im[:, :, :2]  # Keep only the first two channels
+            im = Image.fromarray(im)
 
         # Verify labels
         if os.path.isfile(lb_file):
@@ -611,7 +634,7 @@ def compress_one_image(f, f_new=None, max_dim=1920, quality=50):
         im.save(f_new or f, "JPEG", quality=quality, optimize=True)  # save
     except Exception as e:  # use OpenCV
         LOGGER.info(f"WARNING ⚠️ HUB ops PIL failure {f}: {e}")
-        im = cv2.imread(f)
+        im = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         im_height, im_width = im.shape[:2]
         r = max_dim / max(im_height, im_width)  # ratio
         if r < 1.0:  # image too large
