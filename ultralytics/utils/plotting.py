@@ -816,10 +816,14 @@ def plot_images(
 
     # Build Image
     mosaic = np.full((int(ns * h), int(ns * w), 3), 255, dtype=np.uint8)  # init
-    for i in range(bs):
+    for i, im in enumerate(images):
+        if i == max_subplots:  # if last batch has fewer images than we expect
+            break
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
-        mosaic[y : y + h, x : x + w, :] = images[i].transpose(1, 2, 0)
-
+        im = im.transpose(1, 2, 0)
+        (B, G, R) = cv2.split(im)
+        merged = cv2.merge([B, G, R])
+        mosaic[y : y + h, x : x + w, :] = merged
     # Resize (optional)
     scale = max_size / ns / max(h, w)
     if scale < 1:
