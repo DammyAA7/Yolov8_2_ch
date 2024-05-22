@@ -820,6 +820,8 @@ def plot_images(
         if i == max_subplots:  # if last batch has fewer images than we expect
             break
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
+        zeros_channel = np.zeros((im.shape[0], im.shape[1]), dtype=np.uint8)
+        im = cv2.merge([im[:, :, 0], im[:, :, 1], zeros_channel])
         im = im.transpose(1, 2, 0)
         (B, G, R) = cv2.split(im)
         merged = cv2.merge([B, G, R])
