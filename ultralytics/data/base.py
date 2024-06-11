@@ -157,6 +157,9 @@ class BaseDataset(Dataset):
             if im is None:
                 raise FileNotFoundError(f"Image Not Found {f}")
 
+            # Select only the first two channels
+            im = im[:, :, :2]
+        
             h0, w0 = im.shape[:2]  # orig hw
             if rect_mode:  # resize long side to imgsz while maintaining aspect ratio
                 r = self.imgsz / max(h0, w0)  # ratio
