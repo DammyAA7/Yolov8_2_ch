@@ -820,12 +820,14 @@ def plot_images(
         if i == max_subplots:  # if last batch has fewer images than we expect
             break
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
-        zeros_channel = np.zeros((im.shape[0], im.shape[1]), dtype=np.uint8)
-        im = cv2.merge([im[:, :, 0], im[:, :, 1], zeros_channel])
-        im = im.transpose(1, 2, 0)
-        (B, G, R) = cv2.split(im)
-        merged = cv2.merge([B, G, R])
-        mosaic[y : y + h, x : x + w, :] = merged
+
+        # Add zero-filled third channel if image has only two channels
+        if im.shape[0] == 2:
+            zeros_channel = np.zeros((h, w), dtype=np.uint8)
+            im = np.stack([im[0], im[1], zeros_channel], axis=0)
+        
+        im = im.transpose(1, 2, 0)  # Convert to HWC
+        mosaic[y : y + h, x : x + w, :] = im
     # Resize (optional)
     scale = max_size / ns / max(h, w)
     if scale < 1:
